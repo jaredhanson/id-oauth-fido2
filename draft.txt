@@ -1,0 +1,392 @@
+
+
+
+
+Internet Engineering Task Force                   J. Hanson. Hanson, Ed.
+Internet-Draft                                                      Okta
+Intended status: Informational                             8 August 2022
+Expires: 9 February 2023
+
+
+                   WebAuthn Assertion Grant for OAuth
+                      draft-hanson-oauth-fido2-00
+
+Abstract
+
+   This specification defines the use of a Web Authentication assertion
+   as a means of requesting an OAuth 2.0 access token.
+
+Status of This Memo
+
+   This Internet-Draft is submitted in full conformance with the
+   provisions of BCP 78 and BCP 79.
+
+   Internet-Drafts are working documents of the Internet Engineering
+   Task Force (IETF).  Note that other groups may also distribute
+   working documents as Internet-Drafts.  The list of current Internet-
+   Drafts is at https://datatracker.ietf.org/drafts/current/.
+
+   Internet-Drafts are draft documents valid for a maximum of six months
+   and may be updated, replaced, or obsoleted by other documents at any
+   time.  It is inappropriate to use Internet-Drafts as reference
+   material or to cite them other than as "work in progress."
+
+   This Internet-Draft will expire on 9 February 2023.
+
+Copyright Notice
+
+   Copyright (c) 2022 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents (https://trustee.ietf.org/
+   license-info) in effect on the date of publication of this document.
+   Please review these documents carefully, as they describe your rights
+   and restrictions with respect to this document.  Code Components
+   extracted from this document must include Revised BSD License text as
+   described in Section 4.e of the Trust Legal Provisions and are
+   provided without warranty as described in the Revised BSD License.
+
+
+
+
+
+
+
+Hanson                   Expires 9 February 2023                [Page 1]
+
+Internet-Draft               OAuth WebAtuhn                  August 2022
+
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   2
+     1.1.  Requirements Language . . . . . . . . . . . . . . . . . .   3
+   2.  WebAuthn Assertion Grant  . . . . . . . . . . . . . . . . . .   4
+     2.1.  Nonce Request . . . . . . . . . . . . . . . . . . . . . .   4
+     2.2.  Access Token Request  . . . . . . . . . . . . . . . . . .   4
+     2.3.  Access Token Response . . . . . . . . . . . . . . . . . .   5
+   3.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .   5
+   4.  Security Considerations . . . . . . . . . . . . . . . . . . .   5
+   5.  References  . . . . . . . . . . . . . . . . . . . . . . . . .   5
+     5.1.  Normative References  . . . . . . . . . . . . . . . . . .   5
+     5.2.  Informative References  . . . . . . . . . . . . . . . . .   6
+   Appendix A.  Platform-Specific Implementation Details . . . . . .   6
+     A.1.  iOS Implementation Details  . . . . . . . . . . . . . . .   6
+     A.2.  Android Implementation Details  . . . . . . . . . . . . .   6
+   Acknowledgements  . . . . . . . . . . . . . . . . . . . . . . . .   6
+   Contributors  . . . . . . . . . . . . . . . . . . . . . . . . . .   6
+   Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .   6
+
+1.  Introduction
+
+   A Web Authentication (WebAuthn) assertion is a cryptographically
+   signed object returned by an authenticator that is used to prove that
+   a user controls the credential private key of a previously registered
+   public key credential.  Examples of authenticators are security keys
+   such as a YubiKey or passkeys synchronized between a user's devices
+   by the platform vendor such as Apple (iOS, macOS, Safari), Google
+   (Android, Chrome), and Microsoft (Windows, Edge).
+
+   OAuth 2.0 [RFC6749] is an authorization framework that enables an
+   application to obtain limited access to a protected HTTP resource.
+   In OAuth, those applications are called clients; they access
+   protected resources by presenting an access token to the HTTP
+   resource.  Access tokens are issued to clients by an authorization
+   server with the (sometimes implicit) approval of the resource owner.
+   These access tokens are typically obtained by exchanging an
+   authorization grant, which represents the authorization granted by
+   the resource owner (or by a privileged administrator).
+
+
+
+
+
+
+
+
+
+
+
+
+Hanson                   Expires 9 February 2023                [Page 2]
+
+Internet-Draft               OAuth WebAtuhn                  August 2022
+
+
+   This specification defines an OAuth 2.0 authorization grant type
+   which can be used to obtain an access token by presenting a WebAuthn
+   assertion.  This grant type is similar to the resource owner password
+   credentials grant type, in that the client directly exchanges
+   resource owner credentials for an access token.  Unlike password
+   credentials, which require sharing a secret with the application,
+   cryptographic key pairs are used in which only the public key needs
+   to be shared with the client while the private key can be protected
+   by the operating system.
+
+   Security concerns surrounding the use of resource owner password
+   credentials grant have resulted in its use being recommended against
+   in OAuth 2.0 Security Best Current Practice.  Instead, all
+   applications are recommended to make authorization requests through
+   external user-agents, primarily the user's browser.  This
+   recommendation applies equally to both web applications and native
+   applications (where it is known as the "AppAuth pattern") as detailed
+   in OAuth 2.0 for Native Apps.
+
+   While the rationale behind these recommendations is sound, experience
+   indicates that many developers of native applications are hesitant to
+   mix web-based and native UIs due to concerns about the percieved
+   negative impact on user experience.  This results in applications
+   ignoring the recommendations and prompting a user directly for
+   credentials, typically a password.
+
+   Use of FIDO-compatible authenticators and corresponding platform APIs
+   can address both user experience and security concerns.  Platforms
+   provide native UIs for authenticating using passkeys while
+   simultaneously protecting the private keys and binding the credential
+   to a domain associated with the application.  Combined with this
+   specification, this allows native applications to obtain an access
+   token without requiring an external user-agent or exposing
+   credentials to the application.
+
+1.1.  Requirements Language
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in BCP
+   14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+
+
+
+
+
+
+
+
+Hanson                   Expires 9 February 2023                [Page 3]
+
+Internet-Draft               OAuth WebAtuhn                  August 2022
+
+
+2.  WebAuthn Assertion Grant
+
+2.1.  Nonce Request
+
+   TODO: Specify an endpoint used to retrieve nonces
+
+2.2.  Access Token Request
+
+   A client requests an access token by making a token request to the
+   authorization server's token endpoint using the extension grant type
+   mechanism defined in Section 4.5 of [RFC6749].
+
+   The client makes a request to the token endpoint by adding the
+   following parameters using the "application/x-www-form-urlencoded"
+   format per Appendix B of RFC6749 with a character encoding of UTF-8
+   in the HTTP request entity-body:
+
+   grant_type
+      REQUIRED.  Value MUST be set to "urn:okta:params:oauth:grant-
+      type:fido2"
+
+   credential_id
+      REQUIRED.  The public key credential's identifier.  Described in
+      Section 5.1 of WebAuthn
+
+   client_data_json
+      REQUIRED.  Client data as described in Section 5.8.1 of WebAuthn.
+      Encoded using base64url encoding
+
+   authenticator_data
+      REQUIRED.  The authenticator data structure.  Described in
+      Section 6.1 of WebAuthn.  Encoded using base64url encoding.
+
+   signature
+      REQUIRED.  The raw signature as returned by the authenticator.
+
+   user_handle
+      OPTIONAL.  The user handle returned from the authenticator
+
+   If the client type is confidential or the client was issued client
+   credentials (or assigned other authentication requirements), the
+   client MUST authenticate with the authorization server as described
+   in Section 3.2.1 of RFC6749.
+
+   For example, the client makes the following HTTPS request (line
+   breaks are for display purposes only)::
+
+
+
+
+
+Hanson                   Expires 9 February 2023                [Page 4]
+
+Internet-Draft               OAuth WebAtuhn                  August 2022
+
+
+   POST /token HTTP/1.1
+   Host: server.example.com
+   Authorization: Basic czZCaGRSa3F0MzpnWDFmQmF0M2JW
+   Content-Type: application/x-www-form-urlencoded
+
+   grant_type=urn%3Aokta%3Aparams%3Aoauth%3Agrant-type%3Afido2
+   &credential_id=iFxm...m-ZA
+   &client_data_json=eyJ0eXBlIjoi...NlfQ
+   &authenticator_data=SZYN5YgOjGh0...AAAA
+   &signature=MEYCIQCCKxA70wel...3JqM
+
+                                  Figure 1
+
+   The authorization server MUST:
+
+   *  require client authentication for confidential clients or for any
+      client that was issued client credentials (or with other
+      authentication requirements),
+
+   *  authenticate the client if client authentication is included, and
+
+   *  verify the WebAuthn assertion as specified in Section 7.2 of
+      WebAuthn.
+
+2.3.  Access Token Response
+
+   If the access token request is valid and authorized, the
+   authorization server issues an access token and optional refresh
+   token as described in in Section 5.1 of [RFC6749].  If the request
+   failed client authentication or is invalid, the authorization server
+   returns an error response as described in Section 5.2 of [RFC6749].
+
+3.  IANA Considerations
+
+   This memo includes no request to IANA.  [CHECK]
+
+4.  Security Considerations
+
+   This document should not affect the security of the Internet.
+   [CHECK]
+
+5.  References
+
+5.1.  Normative References
+
+
+
+
+
+
+
+Hanson                   Expires 9 February 2023                [Page 5]
+
+Internet-Draft               OAuth WebAtuhn                  August 2022
+
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+5.2.  Informative References
+
+   [exampleRefMin]
+              Surname [REPLACE], Initials [REPLACE]., "Title [REPLACE]",
+              2006.
+
+   [exampleRefOrg]
+              Organization [REPLACE], "Title [REPLACE]", 1984,
+              <http://www.example.com/>.
+
+Appendix A.  Platform-Specific Implementation Details
+
+A.1.  iOS Implementation Details
+
+   Native apps on iOS can obtain WebAuthn assertions by utilizing the
+   Public-Private Key Authentication APIs provided by the Authentication
+   Services framework.
+   https://developer.apple.com/documentation/authenticationservices/
+   public-private_key_authentication
+
+A.2.  Android Implementation Details
+
+   Native apps on Android can obtain WebAuthn assertions by utilizing
+   the FIDO2 package provided by Google Play services. https://developer
+   s.google.com/android/reference/com/google/android/gms/fido/fido2/
+   package-summary
+
+Acknowledgements
+
+   This template uses extracts from templates written by Pekka Savola,
+   Elwyn Davies and Henrik Levkowetz.  [REPLACE]
+
+Contributors
+
+   Thanks to all of the contributors.  [REPLACE]
+
+Author's Address
+
+
+
+
+
+Hanson                   Expires 9 February 2023                [Page 6]
+
+Internet-Draft               OAuth WebAtuhn                  August 2022
+
+
+   Jared Hanson (editor)
+   Okta
+   Street [REPLACE/DELETE]
+   City [REPLACE/DELETE]
+   Phone: Phone [REPLACE/DELETE]
+   Email: Email [REPLACE/DELETE]
+   URI:   URI [REPLACE/DELETE]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Hanson                   Expires 9 February 2023                [Page 7]

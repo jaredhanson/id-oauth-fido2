@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-model href="rfc7991bis.rnc"?>
+
+
+<!DOCTYPE rfc [
+  <!ENTITY nbsp    "&#160;">
+  <!ENTITY zwsp   "&#8203;">
+  <!ENTITY nbhy   "&#8209;">
+  <!ENTITY wj     "&#8288;">
+]>
+
+<rfc
+  xmlns:xi="http://www.w3.org/2001/XInclude"
+  category="info"
+  docName="draft-hanson-oauth-fido2-00"
+  ipr="trust200902"
+  obsoletes=""
+  updates=""
+  submissionType="IETF"
+  xml:lang="en"
+  version="3">
+
+  <front>
+    <title abbrev="OAuth WebAtuhn">WebAuthn Assertion Grant for OAuth</title>
+
+    <seriesInfo name="Internet-Draft" value="draft-rfcxml-general-template-standard-00 [REPLACE]"/>
+   
+    <author fullname="Jared Hanson" initials="J. Hanson" role="editor" surname="Hanson">
+      
+    <!-- all of the following elements are optional -->
+      <organization>Okta</organization>
+      <address>
+        <postal>
+          <!-- Reorder these if your country does things differently -->
+          <street>Street [REPLACE/DELETE]</street>
+          <city>City [REPLACE/DELETE]</city>
+          <region>Region [REPLACE/DELETE]</region>
+          <code>Postal code [REPLACE/DELETE]</code>
+          <country>Country [REPLACE/DELETE]</country>
+          <!-- Uses two letter country code -->
+        </postal>        
+        <phone>Phone [REPLACE/DELETE]</phone>
+        <email>Email [REPLACE/DELETE]</email>  
+        <!-- Can have more than one <email> element -->
+        <uri>URI [REPLACE/DELETE]</uri>
+      </address>
+    </author>
+   
+    <date year="2022"/>
+    <!-- On draft subbmission:
+         * If only the current year is specified, the current day and month will be used.
+         * If the month and year are both specified and are the current ones, the current day will
+           be used
+         * If the year is not the current one, it is necessary to specify at least a month and day="1" will be used.
+    -->
+
+    <area>General</area>
+    <workgroup>Internet Engineering Task Force</workgroup>
+    <!-- "Internet Engineering Task Force" is fine for individual submissions.  If this element is 
+          not present, the default is "Network Working Group", which is used by the RFC Editor as 
+          a nod to the history of the RFC Series. -->
+
+    <keyword>keyword</keyword>
+    <!-- [REPLACE/DELETE]. Multiple allowed.  Keywords are incorporated into HTML output files for 
+         use by search engines. -->
+
+    <abstract>
+      <t>This specification defines the use of a Web Authentication assertion
+        as a means of requesting an OAuth 2.0 access token.</t>
+    </abstract>
+ 
+  </front>
+
+  <middle>
+    
+    <section>
+      <name>Introduction</name>
+      <t>
+        A Web Authentication (WebAuthn) assertion is a cryptographically signed
+        object returned by an authenticator that is used to prove that a user
+        controls the credential private key of a previously registered public
+        key credential.  Examples of authenticators are security keys such as a
+        YubiKey or passkeys synchronized between a user's devices by the
+        platform vendor such as Apple (iOS, macOS, Safari), Google (Android,
+        Chrome), and Microsoft (Windows, Edge).
+      </t>
+      
+      <t>
+        OAuth 2.0 [RFC6749] is an authorization framework that enables an
+        application to obtain limited access to a protected HTTP resource.  In
+        OAuth, those applications are called clients; they access protected
+        resources by presenting an access token to the HTTP resource.  Access
+        tokens are issued to clients by an authorization server with the
+        (sometimes implicit) approval of the resource owner.  These access
+        tokens are typically obtained by exchanging an authorization grant,
+        which represents the authorization granted by the resource owner (or by
+        a privileged administrator).
+      </t>
+      
+      <t>
+        This specification defines an OAuth 2.0 authorization grant type which
+        can be used to obtain an access token by presenting a WebAuthn
+        assertion.  This grant type is similar to the resource owner password
+        credentials grant type, in that the client directly exchanges resource
+        owner credentials for an access token.  Unlike password credentials,
+        which require sharing a secret with the application, cryptographic key
+        pairs are used in which only the public key needs to be shared with the
+        client while the private key can be protected by the operating system.
+      </t>
+      
+      <t>
+        Security concerns surrounding the use of resource owner password
+        credentials grant have resulted in its use being recommended against in
+        OAuth 2.0 Security Best Current Practice.  Instead, all applications are
+        recommended to make authorization requests through external user-agents,
+        primarily the user's browser.  This recommendation applies equally to
+        both web applications and native applications (where it is known as the
+        "AppAuth pattern") as detailed in OAuth 2.0 for Native Apps.
+      </t>
+      
+      <t>
+        While the rationale behind these recommendations is sound, experience
+        indicates that many developers of native applications are hesitant to
+        mix web-based and native UIs due to concerns about the percieved
+        negative impact on user experience.  This results in applications
+        ignoring the recommendations and prompting a user directly for
+        credentials, typically a password.
+      </t>
+      
+      <t>
+        Use of FIDO-compatible authenticators and corresponding platform APIs
+        can address both user experience and security concerns.  Platforms
+        provide native UIs for authenticating using passkeys while
+        simultaneously protecting the private keys and binding the credential
+        to a domain associated with the application.  Combined with this
+        specification, this allows native applications to obtain an access token
+        without requiring an external user-agent or exposing credentials to the
+        application.
+      </t>
+      
+      <section>
+        <name>Requirements Language</name>
+        <t>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL",
+          "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT
+          RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be
+          interpreted as described in BCP 14 <xref target="RFC2119"/>
+          <xref target="RFC8174"/> when, and only when, they appear in
+          all capitals, as shown here.</t>
+      </section>
+      <!-- [CHECK] The 'Requirements Language' section is optional -->
+
+    </section>
+    
+    <section>
+      <name>WebAuthn Assertion Grant</name>
+      
+      <section>
+        <name>Nonce Request</name>
+        <t>
+          TODO: Specify an endpoint used to retrieve nonces
+        </t>
+      </section>
+      
+      <section>
+        <name>Access Token Request</name>
+        <t>A client requests an access token by making a token request to the
+          authorization server's token endpoint using the extension grant type
+          mechanism defined in Section 4.5 of [RFC6749].</t>
+          
+        <t>The client makes a request to the token endpoint by adding the
+          following parameters using the "application/x-www-form-urlencoded"
+          format per Appendix B of RFC6749 with a character encoding of UTF-8 in
+          the HTTP request entity-body:</t>
+          
+        <dl newline="true">
+          <dt>grant_type</dt>
+          <dd>REQUIRED.  Value MUST be set to
+            "urn:okta:params:oauth:grant-type:fido2"</dd>
+          <dt>credential_id</dt>
+          <dd>REQUIRED.  The public key credential's identifier.  Described
+            in Section 5.1 of WebAuthn</dd>
+          <dt>client_data_json</dt>
+          <dd>REQUIRED.  Client data as described in Section 5.8.1 of WebAuthn.
+            Encoded using base64url encoding</dd>
+          <dt>authenticator_data</dt>
+          <dd>REQUIRED.  The authenticator data structure.  Described
+            in Section 6.1 of WebAuthn. Encoded using base64url encoding.</dd>
+          <dt>signature</dt>
+          <dd>REQUIRED.  The raw signature as returned by the authenticator.</dd>
+          <dt>user_handle</dt>
+          <dd>OPTIONAL.  The user handle returned from the authenticator</dd>
+        </dl>
+        
+        <t>
+          If the client type is confidential or the client was issued client
+          credentials (or assigned other authentication requirements), the
+          client MUST authenticate with the authorization server as described
+          in Section 3.2.1 of RFC6749.
+        </t>
+        
+        <t>
+          For example, the client makes the following HTTPS request (line
+          breaks are for display purposes only)::
+        </t>
+        <figure>
+
+        <artwork><![CDATA[
+POST /token HTTP/1.1
+Host: server.example.com
+Authorization: Basic czZCaGRSa3F0MzpnWDFmQmF0M2JW
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=urn%3Aokta%3Aparams%3Aoauth%3Agrant-type%3Afido2
+&credential_id=iFxm...m-ZA
+&client_data_json=eyJ0eXBlIjoi...NlfQ
+&authenticator_data=SZYN5YgOjGh0...AAAA
+&signature=MEYCIQCCKxA70wel...3JqM
+]]></artwork>
+      </figure>
+      
+      <t>
+        The authorization server MUST:
+      </t>
+
+      <ul>
+        <li>require client authentication for confidential clients or for any
+          client that was issued client credentials (or with other
+          authentication requirements),</li>
+          
+        <li>authenticate the client if client authentication is included, and</li>
+        
+        <li>
+          verify the WebAuthn assertion as specified in Section 7.2 of WebAuthn.
+        </li>
+      </ul>
+      
+      </section>
+      
+      
+      <section>
+        <name>Access Token Response</name>
+        <t>
+          If the access token request is valid and authorized, the
+          authorization server issues an access token and optional refresh
+          token as described in in Section 5.1 of [RFC6749].  If the request
+          failed client authentication or is invalid, the authorization server
+          returns an error response as described in Section 5.2 of [RFC6749].
+        </t>
+        
+      </section>
+      
+    </section>   
+    
+    <section anchor="IANA">
+    <!-- All drafts are required to have an IANA considerations section. See RFC 8126 for a guide.-->
+      <name>IANA Considerations</name>
+      <t>This memo includes no request to IANA. [CHECK]</t>
+    </section>
+    
+    <section anchor="Security">
+      <!-- All drafts are required to have a security considerations section. See RFC 3552 for a guide. -->
+      <name>Security Considerations</name>
+      <t>This document should not affect the security of the Internet. [CHECK]</t>
+    </section>
+    
+    <!-- NOTE: The Acknowledgements and Contributors sections are at the end of this template -->
+  </middle>
+
+  <back>
+    <references>
+      <name>References</name>
+      <references>
+        <name>Normative References</name>
+        
+        <xi:include href="https://www.rfc-editor.org/refs/bibxml/reference.RFC.2119.xml"/>
+        <xi:include href="https://www.rfc-editor.org/refs/bibxml/reference.RFC.8174.xml"/>
+        <!-- The recommended and simplest way to include a well known reference -->
+        
+      </references>
+ 
+      <references>
+        <name>Informative References</name>
+       
+        <reference anchor="exampleRefMin">
+        <!-- [REPLACE/DELETE] Example minimum reference -->
+          <front>
+            <title>Title [REPLACE]</title>
+            <author initials="Initials [REPLACE]" surname="Surname [REPLACE]">
+              <organization/>
+            </author>
+            <date year="2006"/>
+            <!-- [CHECK] -->
+          </front>
+        </reference>
+
+        <reference anchor="exampleRefOrg" target="http://www.example.com/">
+        <!-- [REPLACE/DELETE] Example reference written by an organization not a person -->
+          <front>
+            <title>Title [REPLACE]</title>
+            <author>
+              <organization>Organization [REPLACE]</organization>
+            </author>
+            <date year="1984"/>
+            <!-- [CHECK] -->
+          </front>
+        </reference>       
+       
+      </references>
+    </references>
+    
+    <section>
+      <name>Platform-Specific Implementation Details</name>
+      
+      <section>
+        <name>iOS Implementation Details</name>
+        <t>
+          Native apps on iOS can obtain WebAuthn assertions by utilizing the
+          Public-Private Key Authentication APIs provided by the Authentication
+          Services framework. https://developer.apple.com/documentation/authenticationservices/public-private_key_authentication
+        </t>
+      </section>
+      
+      <section>
+        <name>Android Implementation Details</name>
+        <t>
+          Native apps on Android can obtain WebAuthn assertions by utilizing the
+          FIDO2 package provided by Google Play services. https://developers.google.com/android/reference/com/google/android/gms/fido/fido2/package-summary
+        </t>
+      </section>
+    </section>
+
+    <section anchor="Acknowledgements" numbered="false">
+      <!-- [REPLACE/DELETE] an Acknowledgements section is optional -->
+      <name>Acknowledgements</name>
+      <t>This template uses extracts from templates written by Pekka Savola, Elwyn Davies and 
+        Henrik Levkowetz. [REPLACE]</t>
+    </section>
+    
+    <section anchor="Contributors" numbered="false">
+      <!-- [REPLACE/DELETE] a Contributors section is optional -->
+      <name>Contributors</name>
+      <t>Thanks to all of the contributors. [REPLACE]</t>
+      <!-- [CHECK] it is optional to add a <contact> record for some or all contributors -->
+    </section>
+    
+ </back>
+</rfc>
